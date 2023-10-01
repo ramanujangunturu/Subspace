@@ -15,7 +15,7 @@ app.get('/api/blog-stats', dataFetcher, (req, res) => {
     //finding number of blogs in the response
     const numberOfBlogs = _.size(req.fetchedData);
 
-    
+
     //finding the longest blog title
     const blogTitleLengths = _.map(req.fetchedData, (blog) => { return _.size(blog.title) });
     const longestBlogTitle = (_.find(req.fetchedData, (blog) => {
@@ -48,6 +48,20 @@ app.get('/api/blog-stats', dataFetcher, (req, res) => {
 
 });
 
+//blog-searcher api which takes query parameter
+app.get('/api/blog-search', dataFetcher ,(req, res) => {
+    const queryParameters = req.query;
+    const regex = new RegExp(queryParameters.query, "i");
+    const searchResult = _.filter(req.fetchedData, (blog) => {
+        if (regex.test(blog.title) || regex.test(blog.id) || regex.test(blog.image_url)) {
+            return blog;
+        }
+    });
+    console.log(searchResult);
+    res.send(searchResult)
+});
+
+  
 function dataFetcher(req, res, next) {
 
     const options = {
