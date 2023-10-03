@@ -9,59 +9,31 @@ app.get('/', (req, res) => {
 });
 
 
-app.get('/api/blog-stats', dataFetcher, (req, res) => {
-    // console.log(req.fetchedData);
+app.get('/api/blog-stats', dataFetcher, dataAnalyzer);
 
-    //finding number of blogs in the response
-    const numberOfBlogs = _.size(req.fetchedData);
-
-
-    //finding the longest blog title
-    const blogTitleLengths = _.map(req.fetchedData, (blog) => { return _.size(blog.title) });
-    const longestBlogTitle = (_.find(req.fetchedData, (blog) => {
-        if (_.size(blog.title) == _.max(blogTitleLengths)) {
-            return blog.title
-        }
-    })).title;
-
-
-    //finding the no of titles with word "privacy"
-    const privacy = new RegExp("privacy", "i");
-    const privacyTitles = _.filter(req.fetchedData, (blog) => {
-        if (privacy.test(blog.title)) {
-            return blog.title
-        }
-    });
-
-
-    //array of unique array titles
-    const titleArray = _.map(req.fetchedData, (blog) => { return (blog.title) });
-    const uniqueTitles = _.uniq(titleArray, (title) => { return title.toLowerCase(); });
-
-    const analytics = {
-        "numberOfBlogs": numberOfBlogs,
-        "longestBlogTitle": longestBlogTitle,
-        "privacyTitles": privacyTitles,
-        "uniqueTitles": uniqueTitles
-    }
-    res.send(analytics);
-
-});
 
 //blog-searcher api which takes query parameter
-app.get('/api/blog-search', dataFetcher ,(req, res) => {
+app.get('/api/blog-search', dataFetcher, (req, res) => {
+    const blogs = req.fetchedData;
     const queryParameters = req.query;
-    const regex = new RegExp(queryParameters.query, "i");
-    const searchResult = _.filter(req.fetchedData, (blog) => {
-        if (regex.test(blog.title) || regex.test(blog.id) || regex.test(blog.image_url)) {
-            return blog;
-        }
-    });
-    console.log(searchResult);
-    res.send(searchResult)
+
+    function dataSearcher(queryParameters) {
+        const regex = new RegExp(queryParameters.query, "i");
+        const searchResult = _.filter(req.fetchedData, (blog) => {
+            if (regex.test(blog.title) || regex.test(blog.id) || regex.test(blog.image_url)) {
+                return blog;
+            }
+        });
+        return searchResult;
+    }
+
+    //memoizing the dataSearcher function
+    const memoizedDataSearcher = _.memoize(dataSearcher);
+    const searchResult = memoizedDataSearcher(queryParameters);
+    console.log(memoizedDataSearcher.cache.get(queryParameters));
+    res.send(searchResult);
 });
 
-  
 function dataFetcher(req, res, next) {
 
     const options = {
@@ -74,10 +46,57 @@ function dataFetcher(req, res, next) {
     fetch('https://intent-kit-16.hasura.app/api/rest/blogs', options)
         .then(response => response.json())
         .then(response => {
-            req.fetchedData = response.blogs;
-            next()
+            const blogs = response.blogs;
+            req.fetchedData = blogs;
+            next();
         })
         .catch(err => console.error(err));
+}
+
+function dataAnalyzer(req, res, next) {
+    const blogs = req.fetchedData;
+    function analyzer(blogs) {
+        //finding number of blogs in the response
+        const numberOfBlogs = _.size(blogs);
+
+        //finding the longest blog title
+        const blogTitleLengths = _.map(blogs, (blog) => { return _.size(blog.title) });
+        const longestBlogTitle = (_.find(blogs, (blog) => {
+            if (_.size(blog.title) == _.max(blogTitleLengths)) {
+                return blog
+            }
+        })).title;
+
+        //finding the no of titles with word "privacy"
+        const privacy = new RegExp("privacy", "i");
+        const privacyTitles = _.filter(blogs, (blog) => {
+            if (privacy.test(blog.title)) {
+                return blog
+            }
+        }).title;
+
+
+        //array of unique array titles
+        const titleArray = _.map(blogs, (blog) => { return (blog.title) });
+        const uniqueTitles = _.uniq(titleArray, (title) => { return title.toLowerCase(); });
+
+        const analytics = {
+            "numberOfBlogs": numberOfBlogs,
+            "longestBlogTitle": longestBlogTitle,
+            "privacyTitles": privacyTitles,
+            "uniqueTitles": uniqueTitles
+        }
+        return analytics;
+    }
+    //memoizing the analyzer function
+    const memoizedAnalyzer = _.memoize(analyzer);
+    
+    //checking if the data is coming from cache or not
+    // memoizedAnalyzer.cache.set(blogs, "cache sending");
+    const analytics = memoizedAnalyzer(blogs);
+    console.log(memoizedAnalyzer.cache.get(blogs));
+    res.send(analytics);
+
 }
 
 
