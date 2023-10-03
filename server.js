@@ -11,7 +11,6 @@ app.get('/', (req, res) => {
 
 app.get('/api/blog-stats', dataFetcher, dataAnalyzer);
 
-
 //blog-searcher api which takes query parameter
 app.get('/api/blog-search', dataFetcher, (req, res) => {
     const blogs = req.fetchedData;
@@ -30,7 +29,10 @@ app.get('/api/blog-search', dataFetcher, (req, res) => {
     //memoizing the dataSearcher function
     const memoizedDataSearcher = _.memoize(dataSearcher);
     const searchResult = memoizedDataSearcher(queryParameters);
-    console.log(memoizedDataSearcher.cache.get(queryParameters));
+    if(_.isEmpty(searchResult)){
+        res.send("No results found");
+    }
+    // console.log(memoizedDataSearcher.cache.get(queryParameters));
     res.send(searchResult);
 });
 
@@ -50,7 +52,10 @@ function dataFetcher(req, res, next) {
             req.fetchedData = blogs;
             next();
         })
-        .catch(err => console.error(err));
+        .catch(err => { 
+            console.error(err) 
+            res.send("something went wrong").status(500);
+        });
 }
 
 function dataAnalyzer(req, res, next) {
@@ -88,13 +93,15 @@ function dataAnalyzer(req, res, next) {
         }
         return analytics;
     }
+
     //memoizing the analyzer function
     const memoizedAnalyzer = _.memoize(analyzer);
-    
+
     //checking if the data is coming from cache or not
+    
     // memoizedAnalyzer.cache.set(blogs, "cache sending");
     const analytics = memoizedAnalyzer(blogs);
-    console.log(memoizedAnalyzer.cache.get(blogs));
+    // console.log(memoizedAnalyzer.cache.get(blogs));
     res.send(analytics);
 
 }
